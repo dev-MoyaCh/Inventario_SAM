@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Aplicación PHP con Apache
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventario_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=bd_inventario
+      - DB_USER=root
+      - DB_PASSWORD=rootpassword
+    networks:
+      - inventario_network
+    restart: unless-stopped
+
+  # Base de datos MariaDB
+  db:
+    image: mariadb:10.4
+    container_name: inventario_db
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=bd_inventario
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init-db/bd_inventario.sql:/docker-entrypoint-initdb.d/bd_inventario.sql
+      - ./init-db/my.cnf:/etc/mysql/conf.d/my.cnf
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventario_network
+    restart: unless-stopped
+    command: --lower_case_table_names=1
+
+  # phpMyAdmin para administración
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: inventario_phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=rootpassword
+      - UPLOAD_LIMIT=50M
+    depends_on:
+      - db
+    networks:
+      - inventario_network
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  inventario_network:
+    driver: bridge
